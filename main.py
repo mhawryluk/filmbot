@@ -88,7 +88,7 @@ def webhook():
             movie = query_result['parameters']['nazwafilmu']
         else:
             for context in query_result['outputContexts']:
-                if context['name'] == 'film-wybrany':
+                if context['name'].endswith('film-wybrany'):
                     movie = context["parameters"]['nazwafilmu']
                     break
             else:
@@ -133,20 +133,20 @@ def webhook():
             else:
                 fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
     # celebs
-    elif action in {}:
+    elif action in {'age', 'birthday', 'occupation', 'height'}:
         celeb = None
 
-        if 'sys.name' in query_result['parameters']:
-            celeb = query_result['parameters']['sys.name']
+        if 'person' in query_result['parameters']:
+            celeb = query_result['parameters']['person']['name']
         else:
             for context in query_result['outputContexts']:
-                if context['name'] == 'osoba-wybrana':
-                    celeb = context["parameters"]['sys.name']
+                if context['name'].endswith('osoba-wybrana'):
+                    celeb = context["parameters"]['person']['name']
                     break
             else:
                 for context in query_result['outputContexts']:
-                    if 'sys.name' in context['parameters']:
-                        celeb = context["parameters"]['sys.name']
+                    if 'person' in context['parameters']:
+                        celeb = context["parameters"]['person']['name']
                         break
 
         if celeb is None:
@@ -188,7 +188,7 @@ def webhook():
             elif value == INFO_NOT_FOUND:
                 fulfillmentText = f"Nie znalazłem informacji o obszarze działalności osoby o imieniu `{celeb}`."
             else:
-                fulfillmentText = f'{celeb} można określić jako: {list(value.values())}'
+                fulfillmentText = f'{celeb} można określić jako: {value}'
 
     return {
         'fulfillmentText': fulfillmentText,
@@ -198,4 +198,5 @@ def webhook():
 
 
 if __name__ == '__main__':
+    print(get_info_celeb("Brad pitt", "age"))
     app.run(host='0.0.0.0', port=8080)
