@@ -36,11 +36,11 @@ def list_actors(movie):
     if response.status_code == 200:
         cast = ""
         for entry in response.json()['cast']:
-            cast += f'{entry["actor"]} jako {entry["character"]}\n'
+            cast += f'{entry["actor"]} jako {entry["character"]}, '
 
         return cast[:-1]
     else:
-        print(response.status_code)
+        return None
 
 
 @app.route('/')
@@ -73,28 +73,40 @@ def webhook():
                     break
             else:
                 return {
-                    'fulfillmentText': "Nie wiem o jaki film chodzi"
+                    'fulfillmentText': "Nie wiem o jaki film chodzi."
                 }
 
     movie = movie.strip('"')
     action = query_result['action']
-    print(action)
 
     if action == 'obsada':
         query = list_actors(movie)
-        fulfillmentText = f'Obsada filmu {movie}:\n{query}'
+        if query is not None:
+            fulfillmentText = f'Obsada filmu {movie}:\n{query}'
+        else:
+            fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
 
     elif action == 'ocena':
         query = get_rating(movie)
-        fulfillmentText = f'Film {movie} oceniono na {query}/10.'
+
+        if query is not None:
+            fulfillmentText = f'Film {movie} oceniono na {query}/10.'
+        else:
+            fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
 
     elif action == 'rok':
         query = get_year(movie)
-        fulfillmentText = f'Film {movie} wyszedł w roku {query}'
+        if query is not None:
+            fulfillmentText = f'Film {movie} wyszedł w roku {query}'
+        else:
+            fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
 
     elif action == 'length':
         query = get_length(movie)
-        fulfillmentText = f'Film {movie} trwa {query}'
+        if query is not None:
+            fulfillmentText = f'Film {movie} trwa {query}'
+        else:
+            fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
 
     return {
         'fulfillmentText': fulfillmentText,
@@ -105,4 +117,3 @@ def webhook():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
-
