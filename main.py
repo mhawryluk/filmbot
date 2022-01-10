@@ -5,14 +5,24 @@ from keys import headers, url, celeb_headers, celeb_url
 
 app = Flask(__name__)
 
+CELEB_NOT_FOUND = -1
+INFO_NOT_FOUND = -2
+MOVIE_NOT_FOUND = -3
+
+occupation_translate = {
+    "actor": "aktor/aktorka",
+    "singer-songwriter": "piosenkarz/piosenkarka",
+    "guitarist": "gitarzysta/gitarzystka",
+    "musician": "muzyk"
+}
+
 
 def get_year(movie):
     response = requests.request("GET", url+movie, headers=headers)
-    print(response.json())
     if response.status_code == 200:
         return response.json()['year']
     else:
-        print(response.status_code)
+        return MOVIE_NOT_FOUND
 
 
 def get_rating(movie):
@@ -20,7 +30,7 @@ def get_rating(movie):
     if response.status_code == 200:
         return response.json()['rating']
     else:
-        print(response.status_code)
+        return MOVIE_NOT_FOUND
 
 
 def get_length(movie):
@@ -28,7 +38,7 @@ def get_length(movie):
     if response.status_code == 200:
         return response.json()['length']
     else:
-        print(response.status_code)
+        return MOVIE_NOT_FOUND
 
 
 def list_actors(movie):
@@ -40,11 +50,7 @@ def list_actors(movie):
 
         return cast[:-1]
     else:
-        return None
-
-
-CELEB_NOT_FOUND = -1
-INFO_NOT_FOUND = -2
+        return MOVIE_NOT_FOUND
 
 
 def get_info_celeb(name, info):
@@ -106,7 +112,7 @@ def webhook():
 
         if action == 'obsada':
             query = list_actors(movie)
-            if query is not None:
+            if query != '' and query is not MOVIE_NOT_FOUND:
                 fulfillmentText = f'Obsada filmu {movie}:\n{query}'
             else:
                 fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
@@ -114,21 +120,21 @@ def webhook():
         elif action == 'ocena':
             query = get_rating(movie)
 
-            if query is not None:
+            if query != '' and query is not MOVIE_NOT_FOUND:
                 fulfillmentText = f'Film {movie} oceniono na {query}/10.'
             else:
                 fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
 
         elif action == 'rok':
             query = get_year(movie)
-            if query is not None:
+            if query != '' and query is not MOVIE_NOT_FOUND:
                 fulfillmentText = f'Film {movie} wyszedł w roku {query}'
             else:
                 fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
 
         elif action == 'length':
             query = get_length(movie)
-            if query is not None:
+            if query != '' and query is not MOVIE_NOT_FOUND:
                 fulfillmentText = f'Film {movie} trwa {query}'
             else:
                 fulfillmentText = f'Nie udało mi się znaleźć informacji o filmie "{movie}". Obawiam się, że nie ma go w mojej bazie.'
@@ -137,19 +143,28 @@ def webhook():
         celeb = None
 
         if 'person' in query_result['parameters']:
-            celeb = query_result['parameters']['person']['name']
-        else:
+            celeb = query_result['parameters']['person']
+            if isinstance(celeb, dict):
+                celeb = celeb['name']
+
+        if celeb is None or celeb == '':
             for context in query_result['outputContexts']:
                 if context['name'].endswith('osoba-wybrana'):
-                    celeb = context["parameters"]['person']['name']
-                    break
+                    celeb = context["parameters"]['person']
+                    if isinstance(celeb, dict):
+                        celeb = celeb['name']
+                    if celeb:
+                        break
             else:
                 for context in query_result['outputContexts']:
                     if 'person' in context['parameters']:
-                        celeb = context["parameters"]['person']['name']
-                        break
+                        celeb = context["parameters"]['person']
+                        if isinstance(celeb, dict):
+                            celeb = celeb['name']
+                        if celeb:
+                            break
 
-        if celeb is None:
+        if celeb is None or celeb == '':
             return {
                 'fulfillmentText': "Nie wiem o kogo chodzi."
             }
@@ -170,7 +185,7 @@ def webhook():
             elif value == INFO_NOT_FOUND:
                 fulfillmentText = f"Nie znalazłem informacji o urodzinach osoby o imieniu `{celeb}`."
             else:
-                fulfillmentText = f'Dnia {value} na świecie powitaliśmy {celeb}.'
+                fulfillmentText = f'Dnia {value} na świecie powitaliśmy osobę o imieniu {celeb}.'
 
         elif action == 'height':
             value = get_info_celeb(celeb, 'height')
@@ -188,7 +203,9 @@ def webhook():
             elif value == INFO_NOT_FOUND:
                 fulfillmentText = f"Nie znalazłem informacji o obszarze działalności osoby o imieniu `{celeb}`."
             else:
-                fulfillmentText = f'{celeb} można określić jako: {value}'
+                value = [occupation_translate.get(
+                    item, item) for item in value]
+                fulfillmentText = f'{celeb} można określić jako: {", ".join(value)}'
 
     return {
         'fulfillmentText': fulfillmentText,
